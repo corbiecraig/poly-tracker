@@ -1,4 +1,5 @@
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,7 +12,16 @@ from backend.services import poller
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
 
-app = FastAPI(title="Polymarket Sharp Tracker", docs_url=None, redoc_url=None)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    poller.start()
+    yield
+    poller.stop()
+
+
+app = FastAPI(title="Polymarket Sharp Tracker", docs_url=None, redoc_url=None, lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -20,17 +30,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-@app.on_event("startup")
-async def startup():
-    init_db()
-    poller.start()
-
-
-@app.on_event("shutdown")
-async def shutdown():
-    poller.stop()
 
 
 app.include_router(alerts.router)
